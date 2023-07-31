@@ -49,9 +49,12 @@ function App() {
         });
         result.form = formObject;
       }
-
-      const requestMethod = result.method ? result.method.toLowerCase() : "get";
-      console.log(result)
+      let requestMethod
+      if (result.form || result.data) {
+        requestMethod = "post";
+      } else {
+        requestMethod = result.method ? result.method.toLowerCase() : "get";
+      }
       let supertestUrl = result.location === true ? result.url : result.location;
       supertestUrl = supertestUrl ? `'${supertestUrl}'` : "undefined";
       const dataField = result.data ? JSON.stringify(result.data, null, 2) : "''";
