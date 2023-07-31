@@ -60,9 +60,15 @@ function App() {
         : "''";
 
       const supertestHeader = result.header
-        ? Object.entries(result.header).map(
-            ([key, value]) => `.set("${key}", "${value}")`
-          )
+        ? Object.entries(result.header).map(([key, value]) => {
+            if (key === "Authorization") {
+              return `.set("${key}", "Bearer " + access_token)`;
+            } else if (key === "Enterprise-Token") {
+              return `.set("${key}", process.env.enterprise_token)`;
+            } else {
+              return `.set("${key}", "${value}")`;
+            }
+          })
         : [];
 
       let supertestCode = `const res = await supertest(${supertestUrl})\n.${requestMethod}('')\n`;
@@ -131,7 +137,7 @@ function App() {
               cURL to Supertest Converter
             </h2>
             <p className="animate__animated animate__fadeIn animate__slow">
-              Convert CURL from postman into supertest http format for Mocha,
+              Convert cURL from postman into supertest http format for Mocha,
               Jest, and many more
             </p>
             <br />
