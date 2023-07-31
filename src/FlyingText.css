@@ -69,3 +69,17 @@
     top: 150%;
   }
 }
+
+.is-relative {
+  position: relative;
+}
+
+.clear-input-button {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  padding: 0.5rem 0.75rem;
+  border: none;
+  background-color: transparent;
+}

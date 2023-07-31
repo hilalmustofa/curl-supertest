@@ -9,6 +9,7 @@ import Confetti from "react-confetti";
 import curlSuper from "./curlsuper.png";
 import "animate.css";
 import FlyingText from "./FlyingText";
+import "@fortawesome/fontawesome-free/css/all.min.css";
 
 function App() {
   const [curlInput, setCurlInput] = useState("");
@@ -20,6 +21,10 @@ function App() {
 
   const handleInputChange = (event) => {
     setCurlInput(event.target.value);
+  };
+
+  const handleClearInput = () => {
+    setCurlInput(""); 
   };
 
   const handleFlyingTextComplete = () => {
@@ -46,29 +51,21 @@ function App() {
       }
 
       const requestMethod = result.method ? result.method.toLowerCase() : "get";
-
-      let supertestUrl;
-      if (result.location) {
-        supertestUrl = result.location;
-      }
-      if (!supertestUrl && result.url) {
-        supertestUrl = result.url;
-      }
+      console.log(result)
+      let supertestUrl = result.location === true ? result.url : result.location;
       supertestUrl = supertestUrl ? `'${supertestUrl}'` : "undefined";
-      const dataField = result.data
-        ? JSON.stringify(result.data, null, 2)
-        : "''";
+      const dataField = result.data ? JSON.stringify(result.data, null, 2) : "''";
 
       const supertestHeader = result.header
         ? Object.entries(result.header).map(([key, value]) => {
-            if (key === "Authorization") {
-              return `.set("${key}", "Bearer " + access_token)`;
-            } else if (key === "Enterprise-Token") {
-              return `.set("${key}", process.env.enterprise_token)`;
-            } else {
-              return `.set("${key}", "${value}")`;
-            }
-          })
+          if (key === "Authorization") {
+            return `.set("${key}", "Bearer " + access_token)`;
+          } else if (key === "Enterprise-Token") {
+            return `.set("${key}", process.env.enterprise)`;
+          } else {
+            return `.set("${key}", "${value}")`;
+          }
+        })
         : [];
 
       let supertestCode = `const res = await supertest(${supertestUrl})\n.${requestMethod}('')\n`;
@@ -79,10 +76,27 @@ function App() {
       }
 
       if (result.form) {
-        const formData = Object.entries(result.form)
-          .map(([key, value]) => `.field('${key}', '${value}')`)
-          .join("\n");
-        supertestCode += formData;
+        if (typeof result.form === "string") {
+          const [key, value] = result.form.split("=");
+          if (value.startsWith('@\"') && value.endsWith("\"")) {
+            const filePath = value.slice(2, -1);
+            supertestCode += `.attach('${key}', '${filePath}')`;
+          } else {
+            supertestCode += `.field('${key}', '${value}')`;
+          }
+        } else if (typeof result.form === "object") {
+          const formData = Object.entries(result.form)
+            .map(([key, value]) => {
+              if (typeof value === "string" && value.startsWith('@\"') && value.endsWith("\"")) {
+                const filePath = value.slice(2, -1);
+                return `.attach('${key}', '${filePath}')`;
+              } else {
+                return `.field('${key}', '${value}')`;
+              }
+            })
+            .join("\n");
+          supertestCode += formData;
+        }
       } else {
         supertestCode += `.send(${dataField})`;
       }
@@ -91,7 +105,6 @@ function App() {
       setOutput(supertestCode);
       setCopied(false);
       setShowConfetti(true);
-      console.log(localStorage.getItem("hasShownFlyingText"));
       if (localStorage.getItem("hasShownFlyingText") === "true") {
         setShowFlyingText(false);
       } else {
@@ -151,6 +164,16 @@ function App() {
                   onChange={handleInputChange}
                   placeholder="Enter your cURL command here..."
                 />
+                 {curlInput && (
+                  <button
+                  className="clear-input-button button is-text has-text-danger"
+                  onClick={handleClearInput}
+                >
+                  <span className="icon">
+                    <i className="fas fa-times"></i>
+                  </span>
+                </button>
+                )}
               </div>
             </div>
             <div className="field is-grouped is-justify-content-center">
@@ -187,9 +210,8 @@ function App() {
               <br />
               <CopyToClipboard text={output} onCopy={handleCopy}>
                 <button
-                  className={`button custom-rounded has-text-weight-medium ${
-                    copied ? "is-success" : "is-primary"
-                  }`}
+                  className={`button custom-rounded has-text-weight-medium ${copied ? "is-success" : "is-primary"
+                    }`}
                 >
                   {copied ? "Copied!" : "Copy"}
                 </button>
