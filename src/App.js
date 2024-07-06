@@ -37,87 +37,104 @@ function App() {
 
   const convertCurlToSupertest = () => {
     try {
-      if (curlInput.trim().indexOf(" ") === -1) {
-        throw new Error("Invalid cURL format");
-      }
-      const result = parse(curlInput);
-      if (result.form && Array.isArray(result.form)) {
-        const formObject = {};
-        result.form.forEach((field) => {
-          const [key, value] = field.split("=");
-          formObject[key] = value.replace(/^"(.*)"$/, "$1");
-        });
-        result.form = formObject;
-      }
-      let requestMethod
-      if (result.form || result.data) {
-        requestMethod = "post";
-      } else {
-        requestMethod = result.method ? result.method.toLowerCase() : "get";
-      }
-      let supertestUrl = result.location === true ? result.url : result.location;
-      supertestUrl = supertestUrl ? `'${supertestUrl}'` : "undefined";
-      const dataField = result.data ? JSON.stringify(result.data, null, 2) : "''";
-
-      const supertestHeader = result.header
-        ? Object.entries(result.header).map(([key, value]) => {
-          if (key === "Authorization") {
-            return `.set("${key}", "Bearer " + access_token)`;
-          } else if (key === "Enterprise-Token") {
-            return `.set("${key}", process.env.enterprise)`;
-          } else {
-            return `.set("${key}", "${value}")`;
-          }
-        })
-        : [];
-
-      let supertestCode = `const res = await supertest(${supertestUrl})\n.${requestMethod}('')\n`;
-
-      if (supertestHeader.length > 0) {
-        supertestHeader[supertestHeader.length - 1] += "\n";
-        supertestCode += supertestHeader.join("\n");
-      }
-
-      if (result.form) {
-        if (typeof result.form === "string") {
-          const [key, value] = result.form.split("=");
-          if (value.startsWith('@\"') && value.endsWith("\"")) {
-            const filePath = value.slice(2, -1);
-            supertestCode += `.attach('${key}', '${filePath}')`;
-          } else {
-            supertestCode += `.field('${key}', '${value}')`;
-          }
-        } else if (typeof result.form === "object") {
-          const formData = Object.entries(result.form)
-            .map(([key, value]) => {
-              if (typeof value === "string" && value.startsWith('@\"') && value.endsWith("\"")) {
-                const filePath = value.slice(2, -1);
-                return `.attach('${key}', '${filePath}')`;
-              } else {
-                return `.field('${key}', '${value}')`;
-              }
-            })
-            .join("\n");
-          supertestCode += formData;
+        if (curlInput.trim().indexOf(" ") === -1) {
+            throw new Error("Invalid cURL format");
         }
-      } else {
-        supertestCode += `.send(${dataField})`;
-      }
-      supertestCode += `\nreturn res`;
+        const result = parse(curlInput);
+        if (result.form && Array.isArray(result.form)) {
+            const formObject = {};
+            result.form.forEach((field) => {
+                const [key, value] = field.split("=");
+                formObject[key] = value.replace(/^"(.*)"$/, "$1");
+            });
+            result.form = formObject;
+        }
+        let requestMethod;
+        if (result.method) {
+            requestMethod = result.method.toLowerCase();
+        } else if (result.form || result.data) {
+            requestMethod = "post";
+        } else {
+            requestMethod = "get";
+        }
 
-      setOutput(supertestCode);
-      setCopied(false);
-      setShowConfetti(true);
-      if (localStorage.getItem("hasShownFlyingText") === "true") {
-        setShowFlyingText(false);
-      } else {
-        setShowFlyingText(true);
-        localStorage.setItem("hasShownFlyingText", "true");
-      }
+        let fullUrl = result.location === true ? result.url : result.location;
+        if (!fullUrl) {
+            throw new Error("Invalid URL");
+        }
+
+        if (!fullUrl.startsWith('http://') && !fullUrl.startsWith('https://')) {
+            fullUrl = 'http://' + fullUrl;
+        }
+
+        const url = new URL(fullUrl);
+        const supertestDomain = `'${url.origin}'`;
+        const supertestPath = `'${url.pathname}${url.search}'`;
+
+        const dataField = result.data ? JSON.stringify(result.data, null, 2) : "''";
+
+        const supertestHeader = result.header
+            ? Object.entries(result.header).map(([key, value]) => {
+                return `.set("${key}", "${value}")`;
+            })
+            : [];
+
+        let supertestCode = `const res = await supertest(${supertestDomain})\n.${requestMethod}(${supertestPath})\n`;
+
+        if (supertestHeader.length > 0) {
+            supertestHeader[supertestHeader.length - 1] += "\n";
+            supertestCode += supertestHeader.join("\n");
+        }
+
+        if (result.form) {
+            if (typeof result.form === "string") {
+                const [key, value] = result.form.split("=");
+                if (value.startsWith('@\"') && value.endsWith("\"")) {
+                    const filePath = value.slice(2, -1);
+                    supertestCode += `.attach('${key}', '${filePath}')`;
+                } else {
+                    supertestCode += `.field('${key}', '${value}')`;
+                }
+            } else if (typeof result.form === "object") {
+                const formData = Object.entries(result.form)
+                    .map(([key, value]) => {
+                        if (typeof value === "string" && value.startsWith('@\"') && value.endsWith("\"")) {
+                            const filePath = value.slice(2, -1);
+                            return `.attach('${key}', '${filePath}')`;
+                        } else {
+                            return `.field('${key}', '${value}')`;
+                        }
+                    })
+                    .join("\n");
+                supertestCode += formData;
+            }
+        } else {
+            supertestCode += `.send(${dataField})`;
+        }
+        supertestCode += `\nreturn res`;
+
+        const functionTemplate = `async function NamaFungsi() {
+    try {
+${supertestCode.split('\n').map(line => '        ' + line).join('\n')}
     } catch (error) {
-      setOutput("Bukan cURL, ckckckck");
+        console.log(error);
     }
-  };
+}`;
+
+        setOutput(functionTemplate);
+        setCopied(false);
+        setShowConfetti(true);
+        if (localStorage.getItem("hasShownFlyingText") === "true") {
+            setShowFlyingText(false);
+        } else {
+            setShowFlyingText(true);
+            localStorage.setItem("hasShownFlyingText", "true");
+        }
+    } catch (error) {
+        setOutput("Bukan cURL, ckckckck");
+    }
+};
+
 
   const calculateButtonPosition = () => {
     const buttonRect = buttonRef.current.getBoundingClientRect();
